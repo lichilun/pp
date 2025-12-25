@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>極光獵手 Aurora Hunter - 即時極光監測</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1d3d 50%, #0f2027 100%);
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        /* 動態星空背景 */
+        .stars {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle 3s infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        /* 導航欄 */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(10, 14, 39, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            z-index: 1000;
+            border-bottom: 2px solid rgba(52, 211, 153, 0.3);
+        }
+
+        nav .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            background: linear-gradient(90deg, #34d399, #10b981, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 2rem;
+            float: right;
+        }
+
+        nav a {
+            color: #fff;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        nav a:hover {
+            color: #34d399;
+        }
+
+        /* 主容器 */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 100px 2rem 2rem;
+        }
+
+        /* Hero 區域 */
+        .hero {
+            text-align: center;
+            padding: 4rem 0;
+            margin-bottom: 3rem;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(90deg, #34d399, #10b981, #06b6d4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.2); }
+        }
+
+        .hero p {
+            font-size: 1.3rem;
+            color: #94a3b8;
+            margin-bottom: 2rem;
+        }
+
+        .hero .stats {
+            display: flex;
+            justify-content: center;
+            gap: 3rem;
+            margin-top: 2rem;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #34d399;
+        }
+
+        .stat-label {
+            color: #94a3b8;
+            margin-top: 0.5rem;
+        }
+
+        /* 卡片樣式 */
+        .card {
+            background: rgba(26, 29, 61, 0.8);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(52, 211, 153, 0.2);
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(52, 211, 153, 0.3);
+        }
+
+        .card h2 {
+            color: #34d399;
+            margin-bottom: 1.5rem;
+            font-size: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* 極光預測區 */
+        .aurora-forecast {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .kp-indicator {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 2rem;
+            border-radius: 15px;
+            text-align: center;
+        }
+
+        .kp-meter {
+            width: 100%;
+            height: 200px;
+            position: relative;
+            margin: 2rem 0;
+        }
+
+        .kp-bar {
+            width: 100%;
+            height: 40px;
+            background: linear-gradient(90deg, 
+                #10b981 0%, #10b981 30%, 
+                #fbbf24 30%, #fbbf24 60%, 
+                #ef4444 60%, #ef4444 100%);
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kp-pointer {
+            position: absolute;
+            width: 4px;
+            height: 60px;
+            background: white;
+            top: -10px;
+            transition: left 0.5s;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        }
+
+        .kp-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+
+        .current-kp {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #34d399;
+            margin: 1rem 0;
+        }
+
+        /* 地圖區域 */
+        .map-container {
+            background: #1e293b;
+            border-radius: 15px;
+            padding: 1rem;
+            height: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .globe {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 40%, #1e3a8a, #0f172a);
+            border-radius: 50%;
+            position: relative;
+            animation: rotate 30s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .aurora-ring {
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 30%;
+            border-radius: 50%;
+            background: radial-gradient(ellipse, 
+                rgba(52, 211, 153, 0.6) 0%, 
+                rgba(16, 185, 129, 0.4) 30%, 
+                transparent 70%);
+            animation: pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; transform: translateX(-50%) scale(1); }
+            50% { opacity: 1; transform: translateX(-50%) scale(1.1); }
+        }
+
+        /* 太陽風數據 */
+        .solar-data {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .data-box {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid rgba(52, 211, 153, 0.2);
+        }
+
+        .data-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #34d399;
+            margin: 1rem 0;
+        }
+
+        .data-label {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .data-status {
+            margin-top: 0.5rem;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            display: inline-block;
+        }
+
+        .status-low { background: #10b981; }
+        .status-moderate { background: #fbbf24; }
+        .status-high { background: #ef4444; }
+
+        /* 極光知識區 */
+        .knowledge-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+        }
+
+        .knowledge-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(51, 65, 85, 0.9) 100%);
+            padding: 2rem;
+            border-radius: 15px;
+            border: 1px solid rgba(52, 211, 153, 0.2);
+        }
+
+        .knowledge-card h3 {
+            color: #34d399;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .knowledge-card ul {
+            list-style: none;
+            line-height: 2;
+        }
+
+        .knowledge-card li:before {
+            content: "→ ";
+            color: #34d399;
+            font-weight: bold;
+        }
+
+        /* 即時圖表 */
+        .chart-container {
+            background: #1e293b;
+            border-radius: 15px;
+            padding: 1.5rem;
+            height: 300px;
+            position: relative;
+        }
+
+        .chart {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 觀測點推薦 */
+        .location-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .location-card {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(52, 211, 153, 0.2);
+            transition: transform 0.3s;
+        }
+
+        .location-card:hover {
+            transform: scale(1.05);
+        }
+
+        .location-image {
+            width: 100%;
+            height: 150px;
+            background: linear-gradient(135deg, #10b981, #06b6d4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+        }
+
+        .location-info {
+            padding: 1.5rem;
+        }
+
+        .location-name {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: #34d399;
+        }
+
+        .location-prob {
+            color: #94a3b8;
+            margin-bottom: 0.5rem;
+        }
+
+        .prob-bar {
+            width: 100%;
+            height: 8px;
+            background: #334155;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .prob-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #34d399);
+            transition: width 0.5s;
+        }
+
+        /* 衛星狀態 */
+        .satellite-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 2rem;
+            border-radius: 15px;
+            margin-top: 2rem;
+        }
+
+        .sat-icon {
+            font-size: 4rem;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .sat-info h3 {
+            color: #34d399;
+            margin-bottom: 1rem;
+        }
+
+        .sat-stats {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .sat-stat {
+            text-align: center;
+        }
+
+        .sat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #34d399;
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 768px) {
+            .aurora-forecast,
+            .knowledge-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .solar-data,
+            .location-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            nav ul {
+                display: none;
+            }
+        }
+
+        /* 更新時間標籤 */
+        .update-time {
+            text-align: center;
+            color: #94a3b8;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        /* 警報區 */
+        .alert {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            animation: alertPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes alertPulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }
+            50% { box-shadow: 0 0 30px rgba(239, 68, 68, 0.8); }
+        }
+
+        .alert-icon {
+            font-size: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- 星空背景 -->
+    <div class="stars" id="stars"></div>
+
+    <!-- 導航欄 -->
+    <nav>
+        <div class="logo">🛰️ 極光獵手 Aurora Hunter</div>
+        <ul>
+            <li><a href="#forecast">極光預測</a></li>
+            <li><a href="#solar">太陽風數據</a></li>
+            <li><a href="#knowledge">極光知識</a></li>
+            <li><a href="#locations">觀測點</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <!-- Hero 區域 -->
+        <div class="hero">
+            <h1>即時極光監測系統</h1>
+            <p>由極光獵手衛星提供最新太空天氣數據</p>
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="orbits">247</div>
+                    <div class="stat-label">今日軌道通過次數</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="images">3,642</div>
+                    <div class="stat-label">累計拍攝影像</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">98.7%</div>
+                    <div class="stat-label">系統運行效率</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 極光警報 -->
+        <div class="alert" id="alert" style="display: none;">
+            <div class="alert-icon">⚠️</div>
+            <div>
+                <strong>極光警報！</strong> Kp指數達到 <span id="alert-kp">7</span>，未來2-6小時內可能出現強烈極光活動
+            </div>
+        </div>
+
+        <!-- 極光預測區 -->
+        <div class="card" id="forecast">
+            <h2>🌌 即時極光預測</h2>
+            <div class="aurora-forecast">
+                <div>
+                    <div class="kp-indicator">
+                        <h3>Kp 地磁活動指數</h3>
+                        <div class="current-kp" id="kp-value">5.2</div>
+                        <p style="color: #fbbf24;">中度活躍 - 極光可能出現</p>
+                        <div class="kp-meter">
+                            <div class="kp-bar">
+                                <div class="kp-pointer" id="kp-pointer" style="left: 52%;"></div>
+                            </div>
+                            <div class="kp-labels">
+                                <span>0 寧靜</span>
+                                <span>3 活躍</span>
+                                <span>6 風暴</span>
+                                <span>9 極端</span>
+                            </div>
+                        </div>
+                        <p style="font-size: 0.9rem; color: #94a3b8; margin-top: 1rem;">
+                            Kp值越高，極光出現的緯度越低，可見範圍越廣
+                        </p>
+                    </div>
+                </div>
+                <div>
+                    <div class="map-container">
+                        <h3 style="text-align: center; margin-bottom: 1rem; color: #34d399;">極光橢圓區預測</h3>
+                        <div class="globe">
+                            <div class="aurora-ring"></div>
+                            <div style="position: absolute; top: 15%; left: 50%; transform: translateX(-50%); text-align: center; color: #94a3b8;">
+                                <div style="font-size: 0.9rem;">北極極光帶</div>
+                                <div style="font-size: 0.8rem; margin-top: 0.5rem;">緯度 65°-75°N</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="update-time">最後更新: <span id="update-time">2025-12-26 14:32 UTC</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 太陽風數據 -->
+        <div class="card" id="solar">
+            <h2>☀️ 太陽風即時數據</h2>
+            <div class="solar-data">
+                <div class="data-box">
+                    <div class="data-label">太陽風速度</div>
+                    <div class="data-value" id="solar-speed">487</div>
+                    <div class="data-label">km/s</div>
+                    <div class="data-status status-moderate">中等</div>
+                </div>
+                <div class="data-box">
+                    <div class="data-label">質子密度</div>
+                    <div class="data-value" id="proton-density">7.3</div>
+                    <div class="data-label">p/cm³</div>
+                    <div class="data-status status-low">正常</div>
+                </div>
+                <div class="data-box">
+                    <div class="data-label">行星際磁場 (Bz)</div>
+                    <div class="data-value" id="bz-field">-5.2</div>
+                    <div class="data-label">nT (南向)</div>
+                    <div class="data-status status-high">有利極光</div>
+                </div>
+            </div>
+            <div class="chart-container" style="margin-top: 2rem;">
+                <h3 style="color: #34d399; margin-bottom: 1rem;">24小時太陽風速度趨勢</h3>
+                <canvas id="solarChart" class="chart"></canvas>
+            </div>
+        </div>
+
+        <!-- 最佳觀測點 -->
+        <div class="card" id="locations">
+            <h2>📍 今晚最佳極光觀測點</h2>
+            <div class="location-grid">
+                <div class="location-card">
+                    <div class="location-image">🇮🇸</div>
+                    <div class="location-info">
+                        <div class="location-name">冰島 雷克雅維克</div>
+                        <div class="location-prob">極光機率: 85%</div>
+                        <div class="prob-bar">
+                            <div class="prob-fill" style="width: 85%;"></div>
+                        </div>
+                        <p style="margin-top: 1rem; color: #94a3b8; font-size: 0.9rem;">
+                            天氣晴朗，預計 22:00-02:00 為最佳觀測時段
+                        </p>
+                    </div>
+                </div>
+                <div class="location-card">
+                    <div class="location-image">🇳🇴</div>
+                    <div class="location-info">
+                        <div class="location-name">挪威 特羅姆瑟</div>
+                        <div class="location-prob">極光機率: 78%</div>
+                        <div class="prob-bar">
+                            <div class="prob-fill" style="width: 78%;"></div>
+                        </div>
+                        <p style="margin-top: 1rem; color: #94a3b8; font-size: 0.9rem;">
+                            多雲，局部可見，建議移動至郊區觀測
+                        </p>
+                    </div>
+                </div>
+                <div class="location-card">
+                    <div class="location-image">🇨🇦</div>
+                    <div class="location-info">
+                        <div class="location-name">加拿大 黃刀鎮</div>
+                        <div class="location-prob">極光機率: 92%</div>
+                        <div class="prob-bar">
+                            <div class="prob-fill" style="width: 92%;"></div>
+                        </div>
+                        <p style="margin-top: 1rem; color: #94a3b8; font-size: 0.9rem;">
+                            絕佳條件！天空清澈，預期強烈極光爆發
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 極光知識 -->
+        <div class="card" id="knowledge">
+            <h2>💡 認識極光與太空天氣</h2>
+            <div class="knowledge-grid">
+                <div class="knowledge-card">
+                    <h3>什麼是極光？</h3>
+                    <p style="line-height: 1.8; color: #cbd5e1;">
+                        極光是太陽風中的帶電粒子與地球大氣層氣體碰撞時產生的光學現象。當太陽風抵達地球，受地磁場引導進入極區，與氧氣和氮氣原子碰撞後，釋放出綠色、紅色、紫色等美麗光芒。
+                    </p>
+                </div>
+                <div class="knowledge-card">
+                    <h3>極光的顏色代表什麼？</h3>
+                    <ul>
+                        <li><span style="color: #10b981;">綠色</span>: 氧原子（高度100-300km）</li>
+                        <li><span style="color: #ef4444;">紅色</span>: 氧原子（高度>300km）</li>
+                        <li><span style="color: #8b5cf6;">紫色/藍色</span>: 氮分子（高度<100km）</li>
+                        <li><span style="color: #f59e0b;">黃色</span>: 綠光與紅光混合</li>
+                    </ul>
+                </div>
+                <div class="knowledge-card">
+                    <h3>太陽風如何影響地球？</h3>
+                    <ul>
+                        <li>衛星通訊干擾與損壞</li>
+                        <li>GPS 定位精度下降</li>
+                        <li>輸電網路電流異常</li>
+                        <li>航空通訊中斷（極區航線）</li>
+                        <li>太空人輻射暴露風險增加</li>
+                    </ul>
+                </div>
+                <div class="knowledge-card">
+                    <h3>如何追蹤極光？</h3>
+                    <ul>
+                        <li>監測 Kp 指數（≥5 即有機會）</li>
+                        <li>關注太陽黑子活動週期</li>
+                        <li>選擇磁緯度 65°-75° 區域</li>
+                        <li>避開滿月與光害</li>
+                        <li>使用衛星即時數據預測</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 衛星狀態 -->
+        <div class="card">
+            <h2>🛰️ 極光獵手衛星狀態</h2>
+            <div class="satellite-status">
+                <div class="sat-icon">🛰️</div>
+                <div class="sat-info">
+                    <h3>衛星運行正常</h3>
+                    <div class="sat-stats">
+                        <div class="sat-stat">
+                            <div class="sat-value" id="sat-altitude">687</div>
+                            <div class="stat-label">軌道高度 (km)</div>
+                        </div>
+                        <div class="sat-stat">
+                            <div class="sat-value" id="sat-speed">7.56</div>
+                            <div class="stat-label">軌道速度 (km/s)</div>
+                        </div>
+                        <div class="sat-stat">
+                            <div class="sat-value">98.2%</div>
+                            <div class="stat-label">電池電量</div>
+                        </div>
+                        <div class="sat-stat">
+                            <div class="sat-value">+18°C</div>
+                            <div class="stat-label">核心溫度</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="update-time">下次數據更新: 12分鐘後</div>
+        </div>
+    </div>
+
+    <script>
+        // 生成星空背景
+        function createStars() {
+            const starsContainer = document.getElementById('stars');
+            for (let i = 0; i < 200; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 100 + '%';
+                star.style.width = Math.random() * 3 + 'px';
+                star.style.height = star.style.width;
+                star.style.animationDelay = Math.random() * 3 + 's';
+                starsContainer.appendChild(star);
+            }
+        }
+        createStars();
+
+        // 模擬即時數據更新
+        function updateData() {
+            // 更新 Kp 值
+            const kp = (Math.random() * 4 + 3).toFixed(1);
+            document.getElementById('kp-value').textContent = kp;
+            document.getElementById('kp-pointer').style.left = (kp / 9 * 100) + '%';
+            
+            // 更新太陽風數據
+            document.getElementById('solar-speed').textContent = Math.floor(Math.random() * 200 + 400);
+            document.getElementById('proton-density').textContent = (Math.random() * 5 + 5).toFixed(1);
+            document.getElementById('bz-field').textContent = (Math.random() * 10 - 5).toFixed(1);
+            
+            // 更新統計數字
+            document.getElementById('orbits').textContent = Math.floor(Math.random() * 20 + 240);
+            document.getElementById('images').textContent = Math.floor(Math.random() * 100 + 3600).toLocaleString();
+            
+            // 更新時間
+            const now = new Date();
+            document.getElementById('update-time').textContent = now.toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+            
+            // 顯示警報（如果 Kp > 6）
+            if (kp > 6) {
+                document.getElementById('alert').style.display = 'flex';
+                document.getElementById('alert-kp').textContent = kp;
+            } else {
+                document.getElementById('alert').style.display = 'none';
+            }
+        }
+
+        // 每30秒更新一次數據
+        setInterval(updateData
